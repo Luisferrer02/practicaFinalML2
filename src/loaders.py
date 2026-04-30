@@ -56,16 +56,19 @@ def _build_doc(text: str, path: Path, base: Path) -> Document:
 
 
 def load_markdown(path: Path, base: Path) -> Document:
-    # TODO Fase 1: leer archivo como utf-8 y devolver _build_doc(...)
-    raise NotImplementedError
+    text = path.read_text(encoding="utf-8")
+    return _build_doc(text, path, base)
 
 
 def load_pdf(path: Path, base: Path) -> Document:
-    # TODO Fase 1: extraer texto con pypdf concatenando páginas
-    raise NotImplementedError
+    from pypdf import PdfReader
+    reader = PdfReader(str(path))
+    text = "\n".join(page.extract_text() or "" for page in reader.pages)
+    return _build_doc(text, path, base)
 
 
 def iter_documents(apuntes_dir: Path) -> Iterable[Document]:
-    """Recorre apuntes_dir y produce un Document por cada .md y .pdf."""
-    # TODO Fase 1: glob de **/*.md y **/*.pdf, llamar al loader correcto
-    raise NotImplementedError
+    for path in sorted(apuntes_dir.rglob("*.md")):
+        yield load_markdown(path, apuntes_dir)
+    for path in sorted(apuntes_dir.rglob("*.pdf")):
+        yield load_pdf(path, apuntes_dir)

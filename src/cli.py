@@ -22,7 +22,9 @@ console = Console()
 
 def _pipeline() -> RagPipeline:
     s = Settings.from_env()
-    return RagPipeline(s, VectorStore(s.chroma_dir), LLMClient(s))
+    llm = LLMClient(s)
+    store = VectorStore(s.chroma_dir, llm.embeddings)
+    return RagPipeline(s, store, llm.chat)
 
 
 @app.command()
@@ -39,7 +41,7 @@ def search(query: str, k: int = 5, unidad: int = typer.Option(None, "--unidad", 
     rag = _pipeline()
     chunks = rag.retrieve(query, k=k, unidad=unidad)
     for i, c in enumerate(chunks, 1):
-        console.print(Panel(c.text, title=f"{i}. {c.metadata.get('source_path')}"))
+        console.print(Panel(c.page_content, title=f"{i}. {c.metadata.get('source_path')}"))
 
 
 if __name__ == "__main__":

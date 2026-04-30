@@ -1,29 +1,35 @@
-"""Factorías de los componentes LLM/embeddings de LangChain.
+"""Factorías de los componentes LLM/embeddings de LangChain para NVIDIA NIM.
 
-Cubre U3: el manejo de errores y reintentos lo proporciona LangChain (`with_retry`)
-sobre las clases `ChatOpenAI` y `OpenAIEmbeddings`.
+Cubre U3: reintentos exponenciales sobre las clases de LangChain.
 """
 from __future__ import annotations
 
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from langchain_core.embeddings import Embeddings
+from langchain_core.language_models import BaseChatModel
+from langchain_nvidia_ai_endpoints import ChatNVIDIA, NVIDIAEmbeddings
 
 from .config import Settings
 
 
-def build_embeddings(settings: Settings) -> OpenAIEmbeddings:
-    return OpenAIEmbeddings(
-        model=settings.embed_model,
-        api_key=settings.openai_api_key,
-    )
+class LLMClient:
+    def __init__(self, settings: Settings) -> None:
+        self._settings = settings
 
+    @property
+    def embeddings(self) -> Embeddings:
+        return NVIDIAEmbeddings(
+            model=self._settings.embed_model,
+            nvidia_api_key=self._settings.nv_api_key,
+        )
 
-def build_chat(settings: Settings, temperature: float = 0.2) -> ChatOpenAI:
-    return ChatOpenAI(
-        model=settings.chat_model,
-        temperature=temperature,
-        api_key=settings.openai_api_key,
-        timeout=30,
-    ).with_retry(
-        stop_after_attempt=3,
-        wait_exponential_jitter=True,
-    )
+    @property
+    def chat(self) -> BaseChatModel:
+        return ChatNVIDIA(
+            model=self._settings.chat_model,
+            nvidia_api_key=self._settings.nv_api_key,
+            temperature=0.2,
+            max_tokens=1024,
+        ).with_retry(
+            stop_after_attempt=3,
+            wait_exponential_jitter=True,
+        )

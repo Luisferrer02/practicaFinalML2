@@ -26,7 +26,8 @@ def _get_pipeline() -> RagPipeline:
     global _pipeline
     if _pipeline is None:
         s = Settings.from_env()
-        _pipeline = RagPipeline(s, VectorStore(s.chroma_dir), LLMClient(s))
+        llm = LLMClient(s)
+        _pipeline = RagPipeline(s, VectorStore(s.chroma_dir, llm.embeddings), llm.chat)
     return _pipeline
 
 

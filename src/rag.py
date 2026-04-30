@@ -7,12 +7,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from langchain_chroma import Chroma
 from langchain_core.documents import Document
 from langchain_core.language_models import BaseChatModel
 from langchain_core.prompts import ChatPromptTemplate
 
 from .config import Settings
+from .vectorstore import VectorStore
 
 
 SYSTEM_PROMPT = """Eres un asistente de estudio para "Aprendizaje Automático 2" (AAU2).
@@ -55,16 +55,19 @@ class RagAnswer:
 
 
 class RagPipeline:
-    def __init__(self, settings: Settings, store: Chroma, chat: BaseChatModel) -> None:
+    def __init__(self, settings: Settings, store: VectorStore, chat: BaseChatModel) -> None:
         self._settings = settings
         self._store = store
         self._chat = chat
         self._prompt = _build_prompt()
 
     def retrieve(self, query: str, k: int | None = None, unidad: int | None = None) -> list[Document]:
-        # TODO Fase 1: _store.similarity_search con filter={"unidad": unidad} si procede
-        raise NotImplementedError
+        k = k or self._settings.top_k
+        filter_dict = {"unidad": unidad} if unidad is not None else None
+        return self._store.search(query, k=k, filter_dict=filter_dict)
 
     def answer(self, question: str, unidad: int | None = None) -> RagAnswer:
-        # TODO Fase 1: retrieve → _format_context → _prompt | _chat → RagAnswer
-        raise NotImplementedError
+        docs = self.retrieve(question, unidad=unidad)
+        context = _format_context(docs)
+        response = self._chat.invoke(self._prompt.invoke({"question": question, "context": context}))
+        return RagAnswer(answer=response.content, sources=docs)

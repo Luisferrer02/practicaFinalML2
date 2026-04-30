@@ -10,7 +10,7 @@ import typer
 from rich.console import Console
 from rich.progress import track
 
-from .chunking import chunk_document
+from .chunking import split_documents
 from .config import Settings
 from .llm_client import LLMClient
 from .loaders import iter_documents
@@ -26,15 +26,21 @@ def main(reset: bool = typer.Option(False, "--reset", help="Borra el índice ant
     console.print(f"[bold]Apuntes:[/bold] {settings.apuntes_dir}")
     console.print(f"[bold]Chroma :[/bold] {settings.chroma_dir}")
 
-    store = VectorStore(settings.chroma_dir)
-    llm = LLMClient(settings)
+    embeddings = LLMClient(settings).embeddings
+    store = VectorStore(settings.chroma_dir, embeddings)
 
     if reset:
         store.reset()
         console.print("[yellow]Índice borrado.[/yellow]")
 
-    # TODO Fase 1: iter_documents → chunk_document → llm.embed (en batch) → store.add
-    raise NotImplementedError
+    docs = list(iter_documents(settings.apuntes_dir))
+    console.print(f"[bold]Documentos cargados:[/bold] {len(docs)}")
+
+    chunks = split_documents(docs, settings.chunk_size, settings.chunk_overlap)
+    console.print(f"[bold]Chunks creados:[/bold] {len(chunks)}")
+
+    store.add_documents(chunks)
+    console.print("[green]Índice actualizado.[/green]")
 
 
 if __name__ == "__main__":

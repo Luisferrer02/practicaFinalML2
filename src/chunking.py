@@ -24,6 +24,14 @@ def split_documents(
     chunk_size: int,
     chunk_overlap: int,
 ) -> list[Document]:
-    """Divide cada Document en chunks anotados con `chunk_index`."""
-    # TODO Fase 1: usar splitter.split_documents(docs) y enumerar por source_path
-    raise NotImplementedError
+    splitter = build_splitter(chunk_size, chunk_overlap)
+    chunks = splitter.split_documents(docs)
+    result = []
+    for doc in chunks:
+        source = doc.metadata.get("source_path", "unknown")
+        existing_idx = doc.metadata.get("chunk_index")
+        if existing_idx is None:
+            idx = len([c for c in result if c.metadata.get("source_path") == source])
+            doc.metadata["chunk_index"] = idx
+        result.append(doc)
+    return result

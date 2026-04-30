@@ -14,7 +14,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 @dataclass(frozen=True)
 class Settings:
-    openai_api_key: str
+    nv_api_key: str
     embed_model: str
     chat_model: str
     apuntes_dir: Path
@@ -25,12 +25,23 @@ class Settings:
 
     @classmethod
     def from_env(cls) -> "Settings":
-        embed_model = os.environ.get("OPENAI_EMBED_MODEL")
-        chat_model = os.environ.get("OPENAI_CHAT_MODEL")
-        if not embed_model or not chat_model:
+        nv_api_key = os.environ.get("NV_API_KEY")
+        embed_model = os.environ.get("NV_EMBED_MODEL")
+        chat_model = os.environ.get("NV_CHAT_MODEL")
+        if not nv_api_key:
             raise RuntimeError(
-                "Define OPENAI_EMBED_MODEL y OPENAI_CHAT_MODEL en .env "
-                "(elige el modelo y deja constancia de la decisión en el README)."
+                "Define NV_API_KEY en .env. "
+                "Obtén tu clave en https://build.nvidia.com → tu perfil → API Keys."
+            )
+        if not embed_model:
+            raise RuntimeError(
+                "Define NV_EMBED_MODEL en .env. "
+                "(ej: nvidia/llama-3.2-nv-embedqa-1b-v2)"
+            )
+        if not chat_model:
+            raise RuntimeError(
+                "Define NV_CHAT_MODEL en .env. "
+                "(ej: nvidia/llama-3.1-nemotron-nano-8b-v1)"
             )
 
         apuntes = Path(os.getenv("APUNTES_DIR", "../../AAU2Apuntes/ml2_clases"))
@@ -42,7 +53,7 @@ class Settings:
             chroma = (PROJECT_ROOT / chroma).resolve()
 
         return cls(
-            openai_api_key=os.environ["OPENAI_API_KEY"],
+            nv_api_key=nv_api_key,
             embed_model=embed_model,
             chat_model=chat_model,
             apuntes_dir=apuntes,
