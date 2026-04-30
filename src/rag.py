@@ -15,21 +15,22 @@ from .config import Settings
 from .vectorstore import VectorStore
 
 
-SYSTEM_PROMPT = """Eres un asistente de estudio para "Aprendizaje Automático 2" (AAU2).
-Respondes en español, basándote ESTRICTAMENTE en los fragmentos de apuntes que se te proporcionan.
+SYSTEM_PROMPT = """Eres un asistente de estudio para el curso de Aprendizaje Automático 2 (AAU2).
+Tu tarea es explicar conceptos de los apuntes del curso de forma clara y completa.
 
-Reglas:
-- Si la respuesta no está en los fragmentos, responde: "No encuentro esto en los apuntes."
-- Cita siempre las fuentes al final como [unidad N - source_path].
-- Sé conciso. Si el usuario pide ejemplos, prioriza los que aparecen en los apuntes.
-"""
+REGLAS:
+- Explica el concepto en profundidad, desarrollando la respuesta de forma natural.
+- Usa la información de los fragmentos proporcionados para formular tu respuesta.
+- Si un fragmento es relevante, inclúyelo en tu explicación.
+- Las fuentes se citan al final entre corchetes, ej: [archivo.md].
+- No necesitas ser extremadamente breve; proporciona una explicación completa."""
 
-USER_PROMPT_TEMPLATE = """Pregunta: {question}
-
-Fragmentos recuperados:
+USER_PROMPT_TEMPLATE = """Fragmentos de los apuntes:
 {context}
 
-Responde a la pregunta usando solo los fragmentos anteriores."""
+Pregunta: {question}
+
+Responde de forma concisa usando solo la información de los fragmentos."""
 
 
 def _build_prompt() -> ChatPromptTemplate:
@@ -40,12 +41,15 @@ def _build_prompt() -> ChatPromptTemplate:
 
 
 def _format_context(docs: list[Document]) -> str:
+    seen = set()
     blocks = []
-    for i, d in enumerate(docs, 1):
-        m = d.metadata
-        header = f"[{i}] unidad={m.get('unidad')} src={m.get('source_path')}"
-        blocks.append(f"{header}\n{d.page_content}")
-    return "\n\n---\n\n".join(blocks)
+    for d in docs:
+        source = d.metadata.get("source_path", "unknown")
+        if source in seen:
+            continue
+        seen.add(source)
+        blocks.append(f"--- {source} ---\n{d.page_content}")
+    return "\n\n".join(blocks)
 
 
 @dataclass

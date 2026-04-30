@@ -28,7 +28,6 @@ class LLMClient:
             model=self._settings.chat_model,
             nvidia_api_key=self._settings.nv_api_key,
             temperature=0.2,
-            max_tokens=1024,
         ).with_retry(
             stop_after_attempt=3,
             wait_exponential_jitter=True,

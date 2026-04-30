@@ -27,11 +27,7 @@ def split_documents(
     splitter = build_splitter(chunk_size, chunk_overlap)
     chunks = splitter.split_documents(docs)
     result = []
-    for doc in chunks:
-        source = doc.metadata.get("source_path", "unknown")
-        existing_idx = doc.metadata.get("chunk_index")
-        if existing_idx is None:
-            idx = len([c for c in result if c.metadata.get("source_path") == source])
-            doc.metadata["chunk_index"] = idx
+    for i, doc in enumerate(chunks):
+        doc.metadata["chunk_index"] = i
         result.append(doc)
     return result
