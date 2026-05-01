@@ -42,8 +42,18 @@ def buscar_apuntes(query: str, k: int = 5, unidad: int | None = None) -> list[di
         k: número de fragmentos a devolver (1-10).
         unidad: opcional, filtra por unidad (1-6).
     """
-    # TODO Fase 2: pipeline.retrieve → serializar a dicts
-    raise NotImplementedError
+    pipeline = _get_pipeline()
+    docs = pipeline.retrieve(query, k=k, unidad=unidad)
+    return [
+        {
+            "contenido": doc.page_content,
+            "unidad": doc.metadata.get("unidad"),
+            "archivo": doc.metadata.get("source_path"),
+            "tipo": doc.metadata.get("tipo"),
+            "titulo": doc.metadata.get("titulo"),
+        }
+        for doc in docs
+    ]
 
 
 @mcp.tool()
@@ -54,15 +64,50 @@ def responder_pregunta(pregunta: str, unidad: int | None = None) -> dict:
         pregunta: pregunta en lenguaje natural.
         unidad: opcional, restringe la búsqueda a una unidad concreta.
     """
-    # TODO Fase 2: pipeline.answer → {"respuesta": ..., "fuentes": [...]}
-    raise NotImplementedError
+    pipeline = _get_pipeline()
+    result = pipeline.answer(pregunta, unidad=unidad)
+    return {
+        "respuesta": result.answer,
+        "fuentes": [
+            {
+                "archivo": doc.metadata.get("source_path"),
+                "unidad": doc.metadata.get("unidad"),
+            }
+            for doc in result.sources
+        ],
+    }
 
 
 @mcp.tool()
 def listar_unidades() -> list[dict]:
     """Devuelve la estructura del temario (unidades y archivos disponibles)."""
-    # TODO Fase 2: recorrer apuntes_dir y agrupar por unidad
-    raise NotImplementedError
+    import os
+    from pathlib import Path
+
+    settings = Settings.from_env()
+    base = settings.apuntes_dir
+
+    unidades: dict[int, list[str]] = {}
+    for root, _, files in os.walk(base):
+        for f in files:
+            if f.endswith((".md", ".pdf")):
+                rel = Path(root).relative_to(base)
+                parts = rel.parts
+                unidad_num = -1
+                for p in parts:
+                    import re
+                    m = re.match(r"unidad(\d+)", p)
+                    if m:
+                        unidad_num = int(m.group(1))
+                        break
+                if unidad_num not in unidades:
+                    unidades[unidad_num] = []
+                unidades[unidad_num].append(str(rel / f))
+
+    return [
+        {"unidad": u, "archivos": sorted(files)}
+        for u, files in sorted(unidades.items())
+    ]
 
 
 @mcp.tool()
@@ -72,8 +117,26 @@ def obtener_documento(ruta_relativa: str) -> str:
     Args:
         ruta_relativa: ruta dentro de ml2_clases/, ej. "unidad5_sesion1/sesion1_fundamentos_rag_embeddings_vectores.md"
     """
-    # TODO Fase 2: leer archivo de apuntes_dir, validar que está dentro de la carpeta
-    raise NotImplementedError
+    import os
+
+    settings = Settings.from_env()
+    base = settings.apuntes_dir
+
+    safe_path = os.path.normpath(ruta_relativa)
+    full_path = base / safe_path
+
+    if not str(full_path.resolve()).startswith(str(base.resolve())):
+        raise ValueError("Ruta fuera del directorio de apuntes")
+
+    if not full_path.exists():
+        raise FileNotFoundError(f"Archivo no encontrado: {ruta_relativa}")
+
+    if full_path.suffix == ".pdf":
+        from pypdf import PdfReader
+        reader = PdfReader(str(full_path))
+        return "\n".join(page.extract_text() or "" for page in reader.pages)
+
+    return full_path.read_text(encoding="utf-8")
 
 
 # ---------- RESOURCES ----------
@@ -81,15 +144,37 @@ def obtener_documento(ruta_relativa: str) -> str:
 @mcp.resource("apuntes://temario")
 def temario() -> str:
     """Outline general de las 6 unidades del curso AAU2."""
-    # TODO Fase 2: generar markdown con el árbol de archivos
-    raise NotImplementedError
+    unidades = listar_unidades()
+    lines = ["# Temario AAU2\n"]
+    for item in unidades:
+        u = item["unidad"]
+        archivos = item["archivos"]
+        if u == -1:
+            lines.append(f"\n## Otros archivos\n")
+        else:
+            lines.append(f"\n## Unidad {u}\n")
+        for a in archivos:
+            lines.append(f"- {a}")
+    return "\n".join(lines)
 
 
 @mcp.resource("apuntes://unidad/{numero}")
 def unidad_resource(numero: str) -> str:
     """Listado de archivos disponibles para la unidad indicada."""
-    # TODO Fase 2: filtrar archivos por unidad y devolver markdown
-    raise NotImplementedError
+    try:
+        num = int(numero)
+    except ValueError:
+        return f"Número de unidad inválido: {numero}"
+
+    unidades = listar_unidades()
+    for item in unidades:
+        if item["unidad"] == num:
+            lines = [f"# Unidad {num}\n"]
+            for a in item["archivos"]:
+                lines.append(f"- {a}")
+            return "\n".join(lines)
+
+    return f"No se encontró la unidad {num}"
 
 
 # ---------- PROMPTS ----------
