@@ -10,13 +10,13 @@ from __future__ import annotations
 
 import logging
 import os
-import re
 from pathlib import Path
 
 from fastmcp import FastMCP
 
 from .config import Settings
 from .llm_client import LLMClient
+from .loaders import infer_unidad, read_file
 from .rag import RagPipeline
 from .vectorstore import VectorStore
 
@@ -115,17 +115,11 @@ def listar_unidades() -> list[dict]:
     for root, _, files in os.walk(base):
         for f in files:
             if f.endswith((".md", ".pdf")):
-                rel = Path(root).relative_to(base)
-                parts = rel.parts
-                unidad_num = -1
-                for p in parts:
-                    m = re.match(r"unidad(\d+)", p)
-                    if m:
-                        unidad_num = int(m.group(1))
-                        break
+                rel = str(Path(root).relative_to(base) / f)
+                unidad_num = infer_unidad(rel)
                 if unidad_num not in unidades:
                     unidades[unidad_num] = []
-                unidades[unidad_num].append(str(rel / f))
+                unidades[unidad_num].append(rel)
 
     return [
         {"unidad": u, "archivos": sorted(files)}
@@ -156,11 +150,7 @@ def obtener_documento(ruta_relativa: str) -> str:
         return f"Archivo no encontrado: {ruta_relativa}"
 
     try:
-        if full_path.suffix == ".pdf":
-            from pypdf import PdfReader
-            reader = PdfReader(str(full_path))
-            return "\n".join(page.extract_text() or "" for page in reader.pages)
-        return full_path.read_text(encoding="utf-8")
+        return read_file(full_path)
     except Exception as e:
         logger.exception("Error en obtener_documento")
         return f"Error al leer el archivo: {e}"

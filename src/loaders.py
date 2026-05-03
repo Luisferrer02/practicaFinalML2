@@ -11,8 +11,18 @@ from pathlib import Path
 from typing import Iterable
 
 from langchain_core.documents import Document
+from pypdf import PdfReader
 
 _UNIDAD_RE = re.compile(r"unidad(\d+)_")
+
+
+def infer_unidad(path_str: str) -> int:
+    """Extrae el número de unidad de una ruta (ej. 'unidad3_sesion1/...' → 3). Devuelve -1 si no se encuentra."""
+    for part in Path(path_str).parts:
+        m = _UNIDAD_RE.match(part)
+        if m:
+            return int(m.group(1))
+    return -1
 
 
 def _infer_metadata(rel_path: Path) -> tuple[int, str]:
@@ -55,15 +65,21 @@ def _build_doc(text: str, path: Path, base: Path) -> Document:
     )
 
 
+def read_file(path: Path) -> str:
+    """Lee el contenido de un archivo .md o .pdf como texto."""
+    if path.suffix == ".pdf":
+        reader = PdfReader(str(path))
+        return "\n".join(page.extract_text() or "" for page in reader.pages)
+    return path.read_text(encoding="utf-8")
+
+
 def load_markdown(path: Path, base: Path) -> Document:
-    text = path.read_text(encoding="utf-8")
+    text = read_file(path)
     return _build_doc(text, path, base)
 
 
 def load_pdf(path: Path, base: Path) -> Document:
-    from pypdf import PdfReader
-    reader = PdfReader(str(path))
-    text = "\n".join(page.extract_text() or "" for page in reader.pages)
+    text = read_file(path)
     return _build_doc(text, path, base)
 
 
