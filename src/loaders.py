@@ -26,20 +26,16 @@ def infer_unidad(path_str: str) -> int:
 
 
 def _infer_metadata(rel_path: Path) -> tuple[int, str]:
-    parts = rel_path.parts
-    unidad = -1
+    unidad = infer_unidad(str(rel_path))
     tipo = "otro"
-    for p in parts:
-        m = _UNIDAD_RE.match(p)
-        if m:
-            unidad = int(m.group(1))
+    for p in rel_path.parts:
+        if _UNIDAD_RE.match(p):
             if "practica" in p:
                 tipo = "practica"
             elif "sesion" in p:
                 tipo = "sesion"
             break
-    name = rel_path.name.lower()
-    if "ejercicios" in name:
+    if "ejercicios" in rel_path.name.lower():
         tipo = "ejercicios"
     return unidad, tipo
 

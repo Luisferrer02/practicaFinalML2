@@ -8,7 +8,23 @@ from langchain_core.documents import Document
 
 # ---------- loaders ----------
 
-from src.loaders import _infer_metadata, _first_h1
+from src.loaders import _infer_metadata, _first_h1, infer_unidad, read_file
+
+
+@pytest.mark.parametrize("path_str, expected", [
+    ("unidad3_sesion1/intro.md", 3),
+    ("unidad1_practica1/ej.pdf", 1),
+    ("otros/readme.md", -1),
+    ("unidad12_sesion1/x.md", 12),
+])
+def test_infer_unidad(path_str, expected):
+    assert infer_unidad(path_str) == expected
+
+
+def test_read_file_markdown(tmp_path):
+    f = tmp_path / "test.md"
+    f.write_text("# Hola", encoding="utf-8")
+    assert read_file(f) == "# Hola"
 
 
 @pytest.mark.parametrize("rel_path, expected_unidad, expected_tipo", [

@@ -25,13 +25,21 @@ logger = logging.getLogger(__name__)
 mcp = FastMCP("apuntes-aau2")
 
 # Inicialización perezosa para que importar el módulo no requiera API key
+_settings: Settings | None = None
 _pipeline: RagPipeline | None = None
+
+
+def _get_settings() -> Settings:
+    global _settings
+    if _settings is None:
+        _settings = Settings.from_env()
+    return _settings
 
 
 def _get_pipeline() -> RagPipeline:
     global _pipeline
     if _pipeline is None:
-        s = Settings.from_env()
+        s = _get_settings()
         llm = LLMClient(s)
         _pipeline = RagPipeline(s, VectorStore(s.chroma_dir, llm.embeddings), llm.chat)
     return _pipeline
@@ -103,7 +111,7 @@ def responder_pregunta(pregunta: str, unidad: int | None = None) -> dict:
 def listar_unidades() -> list[dict]:
     """Devuelve la estructura del temario (unidades y archivos disponibles)."""
     try:
-        settings = Settings.from_env()
+        settings = _get_settings()
     except RuntimeError as e:
         return [{"error": f"Error de configuración: {e}"}]
 
@@ -135,7 +143,7 @@ def obtener_documento(ruta_relativa: str) -> str:
         ruta_relativa: ruta dentro de ml2_clases/, ej. "unidad5_sesion1/sesion1_fundamentos_rag_embeddings_vectores.md"
     """
     try:
-        settings = Settings.from_env()
+        settings = _get_settings()
     except RuntimeError as e:
         return f"Error de configuración: {e}"
 
