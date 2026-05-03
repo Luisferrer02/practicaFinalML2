@@ -23,6 +23,10 @@ console = Console()
 
 @app.command()
 def main(reset: bool = typer.Option(False, "--reset", help="Borra el índice antes de reconstruir")) -> None:
+    run_ingest(reset=reset)
+
+
+def run_ingest(reset: bool = False) -> None:
     try:
         settings = Settings.from_env()
     except RuntimeError as e:
