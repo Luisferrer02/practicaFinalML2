@@ -48,6 +48,9 @@ def buscar_apuntes(query: str, k: int = 5, unidad: int | None = None) -> list[di
         k: número de fragmentos a devolver (1-10).
         unidad: opcional, filtra por unidad (1-6).
     """
+    k = max(1, min(k, 10))
+    if unidad is not None and not 1 <= unidad <= 6:
+        return [{"error": f"Unidad debe estar entre 1 y 6, recibido: {unidad}"}]
     try:
         pipeline = _get_pipeline()
         docs = pipeline.retrieve(query, k=k, unidad=unidad)
@@ -76,6 +79,8 @@ def responder_pregunta(pregunta: str, unidad: int | None = None) -> dict:
         pregunta: pregunta en lenguaje natural.
         unidad: opcional, restringe la búsqueda a una unidad concreta.
     """
+    if unidad is not None and not 1 <= unidad <= 6:
+        return {"error": f"Unidad debe estar entre 1 y 6, recibido: {unidad}"}
     try:
         pipeline = _get_pipeline()
         result = pipeline.answer(pregunta, unidad=unidad)
