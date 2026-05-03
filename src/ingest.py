@@ -6,8 +6,6 @@ Uso:
 """
 from __future__ import annotations
 
-import sys
-
 import typer
 from rich.console import Console
 

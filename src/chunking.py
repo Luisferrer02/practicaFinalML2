@@ -10,7 +10,7 @@ from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 
-def build_splitter(chunk_size: int, chunk_overlap: int) -> RecursiveCharacterTextSplitter:
+def _build_splitter(chunk_size: int, chunk_overlap: int) -> RecursiveCharacterTextSplitter:
     return RecursiveCharacterTextSplitter(
         chunk_size=chunk_size,
         chunk_overlap=chunk_overlap,
@@ -24,7 +24,7 @@ def split_documents(
     chunk_size: int,
     chunk_overlap: int,
 ) -> list[Document]:
-    splitter = build_splitter(chunk_size, chunk_overlap)
+    splitter = _build_splitter(chunk_size, chunk_overlap)
     chunks = splitter.split_documents(docs)
     result = []
     for i, doc in enumerate(chunks):
