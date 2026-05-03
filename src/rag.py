@@ -5,6 +5,7 @@ Cubre U2: system prompt estructurado (rol, reglas, formato).
 """
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 
 from langchain_core.documents import Document
@@ -12,7 +13,13 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.prompts import ChatPromptTemplate
 
 from .config import Settings
-from .vectorstore import VectorStore
+from .vectorstore import VectorStore, VectorStoreError
+
+logger = logging.getLogger(__name__)
+
+
+class RagError(Exception):
+    """Error en el pipeline RAG."""
 
 
 SYSTEM_PROMPT = """Eres un asistente de estudio para el curso de Aprendizaje Automático 2 (AAU2).
@@ -68,10 +75,25 @@ class RagPipeline:
     def retrieve(self, query: str, k: int | None = None, unidad: int | None = None) -> list[Document]:
         k = k or self._settings.top_k
         filter_dict = {"unidad": unidad} if unidad is not None else None
-        return self._store.search(query, k=k, filter_dict=filter_dict)
+        try:
+            return self._store.search(query, k=k, filter_dict=filter_dict)
+        except VectorStoreError:
+            raise
+        except Exception as e:
+            raise RagError(f"Error en la recuperación de documentos: {e}") from e
 
     def answer(self, question: str, unidad: int | None = None) -> RagAnswer:
         docs = self.retrieve(question, unidad=unidad)
+        if not docs:
+            return RagAnswer(
+                answer="No se encontraron fragmentos relevantes en los apuntes.",
+                sources=[],
+            )
         context = _format_context(docs)
-        response = self._chat.invoke(self._prompt.invoke({"question": question, "context": context}))
+        try:
+            response = self._chat.invoke(
+                self._prompt.invoke({"question": question, "context": context})
+            )
+        except Exception as e:
+            raise RagError(f"Error al generar respuesta con el LLM: {e}") from e
         return RagAnswer(answer=response.content, sources=docs)

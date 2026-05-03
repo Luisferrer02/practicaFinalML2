@@ -21,7 +21,11 @@ console = Console()
 
 
 def _pipeline() -> RagPipeline:
-    s = Settings.from_env()
+    try:
+        s = Settings.from_env()
+    except RuntimeError as e:
+        console.print(f"[red]Error de configuración:[/red] {e}")
+        raise typer.Exit(1)
     llm = LLMClient(s)
     store = VectorStore(s.chroma_dir, llm.embeddings)
     return RagPipeline(s, store, llm.chat)
@@ -30,7 +34,11 @@ def _pipeline() -> RagPipeline:
 @app.command()
 def ask(question: str, unidad: int = typer.Option(None, "--unidad", "-u")) -> None:
     rag = _pipeline()
-    result = rag.answer(question, unidad=unidad)
+    try:
+        result = rag.answer(question, unidad=unidad)
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1)
     console.print(Panel(result.answer, title="Respuesta", border_style="green"))
     for i, src in enumerate(result.sources, 1):
         console.print(f"[dim]{i}.[/dim] [cyan]{src.metadata.get('source_path')}[/cyan]")
@@ -39,7 +47,14 @@ def ask(question: str, unidad: int = typer.Option(None, "--unidad", "-u")) -> No
 @app.command()
 def search(query: str, k: int = 5, unidad: int = typer.Option(None, "--unidad", "-u")) -> None:
     rag = _pipeline()
-    chunks = rag.retrieve(query, k=k, unidad=unidad)
+    try:
+        chunks = rag.retrieve(query, k=k, unidad=unidad)
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1)
+    if not chunks:
+        console.print("[yellow]No se encontraron resultados.[/yellow]")
+        return
     for i, c in enumerate(chunks, 1):
         console.print(Panel(c.page_content, title=f"{i}. {c.metadata.get('source_path')}"))
 

@@ -8,6 +8,11 @@ Lanzamiento manual:
 """
 from __future__ import annotations
 
+import logging
+import os
+import re
+from pathlib import Path
+
 from fastmcp import FastMCP
 
 from .config import Settings
@@ -15,6 +20,7 @@ from .llm_client import LLMClient
 from .rag import RagPipeline
 from .vectorstore import VectorStore
 
+logger = logging.getLogger(__name__)
 
 mcp = FastMCP("apuntes-aau2")
 
@@ -42,8 +48,14 @@ def buscar_apuntes(query: str, k: int = 5, unidad: int | None = None) -> list[di
         k: número de fragmentos a devolver (1-10).
         unidad: opcional, filtra por unidad (1-6).
     """
-    pipeline = _get_pipeline()
-    docs = pipeline.retrieve(query, k=k, unidad=unidad)
+    try:
+        pipeline = _get_pipeline()
+        docs = pipeline.retrieve(query, k=k, unidad=unidad)
+    except Exception as e:
+        logger.exception("Error en buscar_apuntes")
+        return [{"error": f"Error al buscar: {e}"}]
+    if not docs:
+        return [{"info": "No se encontraron fragmentos relevantes."}]
     return [
         {
             "contenido": doc.page_content,
@@ -64,8 +76,12 @@ def responder_pregunta(pregunta: str, unidad: int | None = None) -> dict:
         pregunta: pregunta en lenguaje natural.
         unidad: opcional, restringe la búsqueda a una unidad concreta.
     """
-    pipeline = _get_pipeline()
-    result = pipeline.answer(pregunta, unidad=unidad)
+    try:
+        pipeline = _get_pipeline()
+        result = pipeline.answer(pregunta, unidad=unidad)
+    except Exception as e:
+        logger.exception("Error en responder_pregunta")
+        return {"error": f"Error al responder: {e}"}
     return {
         "respuesta": result.answer,
         "fuentes": [
@@ -81,11 +97,14 @@ def responder_pregunta(pregunta: str, unidad: int | None = None) -> dict:
 @mcp.tool()
 def listar_unidades() -> list[dict]:
     """Devuelve la estructura del temario (unidades y archivos disponibles)."""
-    import os
-    from pathlib import Path
+    try:
+        settings = Settings.from_env()
+    except RuntimeError as e:
+        return [{"error": f"Error de configuración: {e}"}]
 
-    settings = Settings.from_env()
     base = settings.apuntes_dir
+    if not base.exists():
+        return [{"error": f"Directorio de apuntes no encontrado: {base}"}]
 
     unidades: dict[int, list[str]] = {}
     for root, _, files in os.walk(base):
@@ -95,7 +114,6 @@ def listar_unidades() -> list[dict]:
                 parts = rel.parts
                 unidad_num = -1
                 for p in parts:
-                    import re
                     m = re.match(r"unidad(\d+)", p)
                     if m:
                         unidad_num = int(m.group(1))
@@ -117,26 +135,30 @@ def obtener_documento(ruta_relativa: str) -> str:
     Args:
         ruta_relativa: ruta dentro de ml2_clases/, ej. "unidad5_sesion1/sesion1_fundamentos_rag_embeddings_vectores.md"
     """
-    import os
+    try:
+        settings = Settings.from_env()
+    except RuntimeError as e:
+        return f"Error de configuración: {e}"
 
-    settings = Settings.from_env()
     base = settings.apuntes_dir
-
     safe_path = os.path.normpath(ruta_relativa)
     full_path = base / safe_path
 
     if not str(full_path.resolve()).startswith(str(base.resolve())):
-        raise ValueError("Ruta fuera del directorio de apuntes")
+        return "Error: ruta fuera del directorio de apuntes."
 
     if not full_path.exists():
-        raise FileNotFoundError(f"Archivo no encontrado: {ruta_relativa}")
+        return f"Archivo no encontrado: {ruta_relativa}"
 
-    if full_path.suffix == ".pdf":
-        from pypdf import PdfReader
-        reader = PdfReader(str(full_path))
-        return "\n".join(page.extract_text() or "" for page in reader.pages)
-
-    return full_path.read_text(encoding="utf-8")
+    try:
+        if full_path.suffix == ".pdf":
+            from pypdf import PdfReader
+            reader = PdfReader(str(full_path))
+            return "\n".join(page.extract_text() or "" for page in reader.pages)
+        return full_path.read_text(encoding="utf-8")
+    except Exception as e:
+        logger.exception("Error en obtener_documento")
+        return f"Error al leer el archivo: {e}"
 
 
 # ---------- RESOURCES ----------
@@ -145,6 +167,8 @@ def obtener_documento(ruta_relativa: str) -> str:
 def temario() -> str:
     """Outline general de las 6 unidades del curso AAU2."""
     unidades = listar_unidades()
+    if unidades and "error" in unidades[0]:
+        return unidades[0]["error"]
     lines = ["# Temario AAU2\n"]
     for item in unidades:
         u = item["unidad"]
@@ -167,6 +191,8 @@ def unidad_resource(numero: str) -> str:
         return f"Número de unidad inválido: {numero}"
 
     unidades = listar_unidades()
+    if unidades and "error" in unidades[0]:
+        return unidades[0]["error"]
     for item in unidades:
         if item["unidad"] == num:
             lines = [f"# Unidad {num}\n"]
