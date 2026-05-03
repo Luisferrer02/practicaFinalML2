@@ -5,7 +5,7 @@ Servidor MCP que expone los apuntes del curso "Aprendizaje Automático 2" como u
 ## Unidades del curso aplicadas
 
 - **Unidad 1 — IA Generativa y LLMs:** Selección y justificación del LLM en base a coste, latencia y calidad para el caso de uso Q&A en español.
-- **Unidad 3 — Transformers y APIs:** Cliente OpenAI con manejo de errores y reintentos exponenciales para embeddings y chat completions.
+- **Unidad 3 — Transformers y APIs:** Cliente NVIDIA NIM (vía LangChain) con manejo de errores y reintentos exponenciales para embeddings y chat completions.
 - **Unidad 5 — RAG y Bases Vectoriales:** Pipeline RAG completo — ingesta de markdown y PDF, chunking recursivo, embeddings, indexación en ChromaDB persistente y recuperación semántica con filtros por metadatos.
 - **Unidad 6 — Model Context Protocol:** Servidor MCP con FastMCP que expone **tools** (`buscar_apuntes`, `responder_pregunta`, `listar_unidades`, `obtener_documento`), **resources** (`apuntes://temario`, `apuntes://unidad/{n}`) y **prompts** (`estudio_unidad`, `generar_quiz`).
 
@@ -16,7 +16,7 @@ Ver [docs/arquitectura.md](docs/arquitectura.md) para el detalle. Resumen:
 ```
 ml2_clases/  ──►  ingesta  ──►  ChromaDB
                                    ▲
-Claude Desktop  ──stdio──►  MCP server  ──►  OpenAI (síntesis)
+Claude Desktop  ──stdio──►  MCP server  ──►  NVIDIA NIM (síntesis)
 ```
 
 ## Tecnologías utilizadas
@@ -25,10 +25,11 @@ Claude Desktop  ──stdio──►  MCP server  ──►  OpenAI (síntesis)
 |------|----------|---------|
 | Servidor MCP | `fastmcp` | >=0.2 |
 | Vector DB | `chromadb` | >=0.5 |
-| LLM y embeddings | `openai` | >=1.40 |
+| LLM y embeddings | `langchain-nvidia-ai-endpoints` | >=0.3 |
+| Orquestación | `langchain` | >=0.3 |
 | PDF | `pypdf` | >=4 |
 | CLI dev | `typer` + `rich` | — |
-| Reintentos | `tenacity` | >=8 |
+| Gestión deps | `uv` | — |
 
 ## Instalación
 
@@ -36,14 +37,10 @@ Claude Desktop  ──stdio──►  MCP server  ──►  OpenAI (síntesis)
 git clone <este-repo>
 cd practicaFinalML2
 
-python -m venv .venv
-source .venv/bin/activate          # Linux/Mac
-.venv\Scripts\activate             # Windows
-
-pip install -r requirements.txt
+uv sync
 
 cp .env.example .env
-# Editar .env con tu OPENAI_API_KEY
+# Editar .env con tu NV_API_KEY
 ```
 
 Apuntar `APUNTES_DIR` (en `.env`) a la ruta del repo `ml2_clases`.
@@ -66,15 +63,20 @@ python -m src.cli search "embeddings" --k 3
 
 ### 3. Conectar con Claude Desktop
 
-Añadir en `claude_desktop_config.json`:
+Añadir en `claude_desktop_config.json` (ver `claude_desktop_config.example.json`):
 
 ```json
 {
   "mcpServers": {
     "apuntes-aau2": {
-      "command": "python",
-      "args": ["-m", "src.mcp_server"],
-      "cwd": "/ruta/absoluta/a/practicaFinalML2"
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/ruta/absoluta/a/practicaFinalML2",
+        "run",
+        "-m",
+        "src.mcp_server"
+      ]
     }
   }
 }
@@ -87,16 +89,16 @@ Reiniciar Claude Desktop y comprobar que aparecen las tools `buscar_apuntes`, `r
 Ver [docs/arquitectura.md](docs/arquitectura.md). Principales:
 
 - **ChromaDB local** en lugar de Pinecone: simplifica setup, no requiere cuenta cloud.
-- **Modelo**: Por decidir
-- **Modelo para retrieval en español** Por decidir
+- **Modelo chat**: `nvidia/llama-3.1-nemotron-nano-8b-v1` — buen equilibrio coste/calidad para síntesis en español.
+- **Modelo embeddings**: `nvidia/llama-3.2-nv-embedqa-1b-v2` — optimizado para retrieval Q&A.
 - **Splitter recursivo por encabezados** (`##`, `###`): los apuntes están bien estructurados, respetar esa jerarquía mejora la coherencia de los chunks.
 - **Filtro por unidad en metadata**: permite consultas dirigidas sin reentrenar.
 
 ## Plan por fases
 
 - [x] **Fase 0 — Esqueleto**: estructura, configs, stubs.
-- [ ] **Fase 1 — RAG funcional**: loaders, chunking, ingesta, retrieval, CLI.
-- [ ] **Fase 2 — Servidor MCP**: implementar tools/resources/prompts y conectar a Claude Desktop.
+- [x] **Fase 1 — RAG funcional**: loaders, chunking, ingesta, retrieval, CLI.
+- [x] **Fase 2 — Servidor MCP**: implementar tools/resources/prompts y conectar a Claude Desktop.
 - [ ] **Fase 3 — Pulido**: errores, capturas, README final.
 
 ## Posibles adiciones

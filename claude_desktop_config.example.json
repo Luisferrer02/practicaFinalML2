@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "apuntes-aau2": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/Users/victor/Uni/inso4/q2/ml2/practicaFinalML2",
+        "run",
+        "-m",
+        "src.mcp_server"
+      ]
+    }
+  }
+}
