@@ -9,16 +9,13 @@ Lanzamiento manual:
 from __future__ import annotations
 
 import logging
-import os
-from pathlib import Path
 
 from fastmcp import FastMCP
 
 from .config import Settings
 from .llm_client import LLMClient
-from .loaders import infer_unidad, read_file
 from .rag import RagPipeline
-from .vectorstore import VectorStore
+from .vectorstore import VectorStore, VectorStoreError
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +24,7 @@ mcp = FastMCP("apuntes-aau2")
 # Inicialización perezosa para que importar el módulo no requiera API key
 _settings: Settings | None = None
 _pipeline: RagPipeline | None = None
+_store: VectorStore | None = None
 
 
 def _get_settings() -> Settings:
@@ -36,12 +34,22 @@ def _get_settings() -> Settings:
     return _settings
 
 
+def _get_store() -> VectorStore:
+    global _store
+    if _store is None:
+        s = _get_settings()
+        llm = LLMClient(s)
+        _store = VectorStore(s.chroma_dir, llm.embeddings)
+    return _store
+
+
 def _get_pipeline() -> RagPipeline:
     global _pipeline
     if _pipeline is None:
         s = _get_settings()
+        store = _get_store()
         llm = LLMClient(s)
-        _pipeline = RagPipeline(s, VectorStore(s.chroma_dir, llm.embeddings), llm.chat)
+        _pipeline = RagPipeline(s, store, llm.chat)
     return _pipeline
 
 
@@ -109,66 +117,52 @@ def responder_pregunta(pregunta: str, unidad: int | None = None) -> dict:
 
 @mcp.tool()
 def listar_unidades() -> list[dict]:
-    """Devuelve la estructura del temario (unidades y archivos disponibles)."""
+    """Devuelve la estructura del temario (unidades y archivos disponibles) desde el índice ChromaDB."""
     try:
-        settings = _get_settings()
-    except RuntimeError as e:
-        return [{"error": f"Error de configuración: {e}"}]
-
-    base = settings.apuntes_dir
-    if not base.exists():
-        return [{"error": f"Directorio de apuntes no encontrado: {base}"}]
+        store = _get_store()
+        sources = store.list_sources()
+    except Exception as e:
+        logger.exception("Error en listar_unidades")
+        return [{"error": f"Error al listar unidades: {e}"}]
 
     unidades: dict[int, list[str]] = {}
-    for root, _, files in os.walk(base):
-        for f in files:
-            if f.endswith((".md", ".pdf")):
-                rel = str(Path(root).relative_to(base) / f)
-                unidad_num = infer_unidad(rel)
-                if unidad_num not in unidades:
-                    unidades[unidad_num] = []
-                unidades[unidad_num].append(rel)
+    for src in sources:
+        u = src["unidad"]
+        if u not in unidades:
+            unidades[u] = []
+        unidades[u].append(src["source_path"])
 
     return [
-        {"unidad": u, "archivos": sorted(files)}
-        for u, files in sorted(unidades.items())
+        {"unidad": u, "archivos": sorted(archivos)}
+        for u, archivos in sorted(unidades.items())
     ]
 
 
 @mcp.tool()
 def obtener_documento(ruta_relativa: str) -> str:
-    """Devuelve el contenido íntegro de un archivo de apuntes.
+    """Devuelve el contenido de un documento indexado a partir de su ruta relativa.
 
     Args:
-        ruta_relativa: ruta dentro de ml2_clases/, ej. "unidad5_sesion1/sesion1_fundamentos_rag_embeddings_vectores.md"
+        ruta_relativa: ruta del archivo, ej. "unidad5_sesion1/sesion1_fundamentos_rag_embeddings_vectores.md"
     """
     try:
-        settings = _get_settings()
-    except RuntimeError as e:
-        return f"Error de configuración: {e}"
-
-    base = settings.apuntes_dir
-    safe_path = os.path.normpath(ruta_relativa)
-    full_path = base / safe_path
-
-    if not str(full_path.resolve()).startswith(str(base.resolve())):
-        return "Error: ruta fuera del directorio de apuntes."
-
-    if not full_path.exists():
-        return f"Archivo no encontrado: {ruta_relativa}"
-
-    try:
-        return read_file(full_path)
+        store = _get_store()
+        chunks = store.get_by_source(ruta_relativa)
     except Exception as e:
         logger.exception("Error en obtener_documento")
-        return f"Error al leer el archivo: {e}"
+        return f"Error al obtener documento: {e}"
+
+    if not chunks:
+        return f"Documento no encontrado en el índice: {ruta_relativa}"
+
+    return "\n\n".join(c.page_content for c in chunks)
 
 
 # ---------- RESOURCES ----------
 
 @mcp.resource("apuntes://temario")
 def temario() -> str:
-    """Outline general de las 6 unidades del curso AAU2."""
+    """Outline general de las unidades del curso AAU2."""
     unidades = listar_unidades()
     if unidades and "error" in unidades[0]:
         return unidades[0]["error"]
@@ -177,7 +171,7 @@ def temario() -> str:
         u = item["unidad"]
         archivos = item["archivos"]
         if u == -1:
-            lines.append(f"\n## Otros archivos\n")
+            lines.append("\n## Otros archivos\n")
         else:
             lines.append(f"\n## Unidad {u}\n")
         for a in archivos:

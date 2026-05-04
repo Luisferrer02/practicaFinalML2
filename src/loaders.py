@@ -69,18 +69,14 @@ def read_file(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def load_markdown(path: Path, base: Path) -> Document:
-    text = read_file(path)
-    return _build_doc(text, path, base)
-
-
-def load_pdf(path: Path, base: Path) -> Document:
+def load_file(path: Path, base: Path) -> Document:
+    """Carga un archivo .md o .pdf y devuelve un Document con metadatos."""
     text = read_file(path)
     return _build_doc(text, path, base)
 
 
 def iter_documents(apuntes_dir: Path) -> Iterable[Document]:
     for path in sorted(apuntes_dir.rglob("*.md")):
-        yield load_markdown(path, apuntes_dir)
+        yield load_file(path, apuntes_dir)
     for path in sorted(apuntes_dir.rglob("*.pdf")):
-        yield load_pdf(path, apuntes_dir)
+        yield load_file(path, apuntes_dir)

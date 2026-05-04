@@ -5,7 +5,6 @@ Cubre U2: system prompt estructurado (rol, reglas, formato).
 """
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass
 
 from langchain_core.documents import Document
@@ -13,9 +12,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.prompts import ChatPromptTemplate
 
 from .config import Settings
-from .vectorstore import VectorStore, VectorStoreError
-
-logger = logging.getLogger(__name__)
+from .vectorstore import VectorStore
 
 
 class RagError(Exception):
@@ -37,7 +34,7 @@ USER_PROMPT_TEMPLATE = """Fragmentos de los apuntes:
 
 Pregunta: {question}
 
-Responde de forma concisa usando solo la información de los fragmentos."""
+Responde usando la información de los fragmentos, citando las fuentes al final."""
 
 
 def _build_prompt() -> ChatPromptTemplate:
@@ -75,12 +72,7 @@ class RagPipeline:
     def retrieve(self, query: str, k: int | None = None, unidad: int | None = None) -> list[Document]:
         k = k or self._settings.top_k
         filter_dict = {"unidad": unidad} if unidad is not None else None
-        try:
-            return self._store.search(query, k=k, filter_dict=filter_dict)
-        except VectorStoreError:
-            raise
-        except Exception as e:
-            raise RagError(f"Error en la recuperación de documentos: {e}") from e
+        return self._store.search(query, k=k, filter_dict=filter_dict)
 
     def answer(self, question: str, unidad: int | None = None) -> RagAnswer:
         docs = self.retrieve(question, unidad=unidad)

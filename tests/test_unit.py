@@ -72,20 +72,26 @@ from src.config import Settings
 
 
 def test_settings_missing_api_key():
-    with patch.dict("os.environ", {"NV_API_KEY": "", "NV_EMBED_MODEL": "x", "NV_CHAT_MODEL": "x"}, clear=False):
+    with patch.dict("os.environ", {"NV_API_KEY": "", "NV_EMBED_MODEL": "x", "NV_CHAT_MODEL": "x", "APUNTES_DIR": "/tmp"}, clear=False):
         with pytest.raises(RuntimeError, match="NV_API_KEY"):
             Settings.from_env()
 
 
 def test_settings_missing_embed_model():
-    with patch.dict("os.environ", {"NV_API_KEY": "key", "NV_EMBED_MODEL": "", "NV_CHAT_MODEL": "x"}, clear=False):
+    with patch.dict("os.environ", {"NV_API_KEY": "key", "NV_EMBED_MODEL": "", "NV_CHAT_MODEL": "x", "APUNTES_DIR": "/tmp"}, clear=False):
         with pytest.raises(RuntimeError, match="NV_EMBED_MODEL"):
+            Settings.from_env()
+
+
+def test_settings_missing_apuntes_dir():
+    with patch.dict("os.environ", {"NV_API_KEY": "key", "NV_EMBED_MODEL": "x", "NV_CHAT_MODEL": "x", "APUNTES_DIR": ""}, clear=False):
+        with pytest.raises(RuntimeError, match="APUNTES_DIR"):
             Settings.from_env()
 
 
 # ---------- rag ----------
 
-from src.rag import _format_context, RagPipeline, RagAnswer
+from src.rag import _format_context, RagPipeline
 
 
 def test_format_context_deduplicates():

@@ -68,3 +68,38 @@ class VectorStore:
             raise
         except Exception as e:
             raise VectorStoreError(f"Error en búsqueda semántica: {e}") from e
+
+    def list_sources(self) -> list[dict]:
+        """Devuelve metadatos únicos (source_path, unidad, tipo, titulo) de todos los documentos indexados."""
+        try:
+            col = self._get_client()._collection
+            result = col.get(include=["metadatas"])
+        except Exception as e:
+            raise VectorStoreError(f"Error al listar fuentes: {e}") from e
+        seen: dict[str, dict] = {}
+        for meta in result["metadatas"] or []:
+            path = meta.get("source_path", "")
+            if path not in seen:
+                seen[path] = {
+                    "source_path": path,
+                    "unidad": meta.get("unidad", -1),
+                    "tipo": meta.get("tipo", "otro"),
+                    "titulo": meta.get("titulo", ""),
+                }
+        return sorted(seen.values(), key=lambda x: (x["unidad"], x["source_path"]))
+
+    def get_by_source(self, source_path: str) -> list[Document]:
+        """Devuelve todos los chunks de un documento dado su source_path, ordenados por chunk_index."""
+        try:
+            col = self._get_client()._collection
+            result = col.get(
+                where={"source_path": source_path},
+                include=["documents", "metadatas"],
+            )
+        except Exception as e:
+            raise VectorStoreError(f"Error al obtener documento '{source_path}': {e}") from e
+        docs = [
+            Document(page_content=text, metadata=meta)
+            for text, meta in zip(result["documents"] or [], result["metadatas"] or [])
+        ]
+        return sorted(docs, key=lambda d: d.metadata.get("chunk_index", 0))

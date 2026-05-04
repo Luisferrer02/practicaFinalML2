@@ -99,7 +99,7 @@ Ver [docs/arquitectura.md](docs/arquitectura.md). Principales:
 - [x] **Fase 0 — Esqueleto**: estructura, configs, stubs.
 - [x] **Fase 1 — RAG funcional**: loaders, chunking, ingesta, retrieval, CLI.
 - [x] **Fase 2 — Servidor MCP**: implementar tools/resources/prompts y conectar a Claude Desktop.
-- [ ] **Fase 3 — Pulido**: errores, capturas, README final.
+- [x] **Fase 3 — Pulido**: errores, capturas, README final.
 
 ## Posibles adiciones
 

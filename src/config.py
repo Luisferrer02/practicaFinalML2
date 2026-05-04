@@ -44,7 +44,12 @@ class Settings:
                 "(ej: nvidia/llama-3.1-nemotron-nano-8b-v1)"
             )
 
-        apuntes = Path(os.getenv("APUNTES_DIR", "../../AAU2Apuntes/ml2_clases"))
+        apuntes_raw = os.getenv("APUNTES_DIR", "")
+        if not apuntes_raw:
+            raise RuntimeError(
+                "Define APUNTES_DIR en .env apuntando al directorio de apuntes (ml2_clases)."
+            )
+        apuntes = Path(apuntes_raw)
         if not apuntes.is_absolute():
             apuntes = (PROJECT_ROOT / apuntes).resolve()
 
